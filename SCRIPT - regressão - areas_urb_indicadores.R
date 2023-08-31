@@ -1,10 +1,9 @@
-
 ############# INSTALAÇÃO E CARREGAMENTO DE PACOTES NECESSÁRIOS #################
 
 ##Pacotes utilizados
 pacotes <- c("plotly","tidyverse","ggrepel","knitr","kableExtra",
              "splines","reshape2","PerformanceAnalytics","metan","correlation",
-             "see","ggraph","nortest","rgl","car","olsrr","jtools","ggstance",
+             "see","ggplot2","ggraph","ggpubr", "nortest","rgl","car","olsrr","jtools","ggstance",
              "Rcpp")
 
 if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
@@ -40,6 +39,8 @@ load(file = "base_comp_f.RData")
 base_comp_f$cod_uf <- as.numeric(base_comp_f$cod_uf)
 base_comp_f$nome_uf <- as.factor(base_comp_f$nome_uf)
 base_comp_f$sigla_uf <- as.factor(base_comp_f$sigla_uf)
+View(base_comp_f)
+
 
 mun_uf <- base_comp_f%>% 
   count(sigla_uf)
@@ -113,6 +114,20 @@ base_comp_f %>%
 
 summary(base_comp_f)
 
+## Gerando novo dataset com valores transformados pelo Logarítmo natural
+base_comp_f_log <- base_comp_f %>%
+  mutate(ln_rh_adm_dir = log(rh_adm_dir),
+         ln_area_2015 = log(area_2015),
+         ln_area_2019 = log(area_2019),
+         ln_PIB_pc_2015 = log(PIB_pc_2015),
+         ln_PIB_pc_2019 = log(PIB_pc_2019),
+         ln_PIB_pcapita_2015 = log(PIB_pcapita_2015),
+         ln_PIB_pcapita_2019 = log(PIB_pcapita_2019),
+         ln_pop_est_2015 = log(pop_est_2015),
+         ln_pop_est_2019 = log(pop_est_2019))
+
+View(base_comp_f_log)
+summary(base_comp_f_log)
 
 ##################### ESTUDO DA RELAÇÃO ENTRE VARIÁVEIS ########################
 
@@ -148,34 +163,52 @@ summ(modelo_area_pop, confint = T, digits = 4, ci.width = .95)
 export_summs(modelo_area_pop, scale = F, digits = 4)
 
 
-## Gráfico de dispersão Area urbanizada em 2019 x População estimada no ano de 2019
-###para valores totais
+## Gráficos de dispersão e estimação da curva (LOG-LOG)
+###LOG-Area urbanizada em 2015 x LOG-População estimada no ano de 2015
 
 ggplotly(
-  ggplot(base_comp_f, aes(x = area_2019, y = (pop_est_2019/1000))) +
+  ggplot(base_comp_f_log, aes(x = ln_pop_est_2015, y = ln_area_2015)) +
     geom_point(color = "#0072B2", size = 1.5, alpha = 0.5) +
-    geom_smooth(aes(x = area_2019, y = (pop_est_2019/1000), color = "Ajuste-linear"),
-                method = "lm", se = F, size = 1) +
-    geom_smooth(aes(x = area_2019, y = (pop_est_2019/1000), color = "Ajuste-auto-R"),
-                se = F, size = 1)+
-    xlab("Área urbanizada em km² - 2019") +
-    ylab("População estimada em 2019 (p 1000)") +
-    scale_color_manual("Legenda:",
-                       values = c("#F0E442", "black"))+
-    theme(legend.postion = "top")+
+    geom_smooth(aes(x = ln_pop_est_2015, y = ln_area_2015), color = "black",
+                method = "lm", se = F, size = 1)+
+    xlab("LOG-População estimada em 2015") +
+    ylab("LOG-Área urbanizada em km² - 2015")+
     theme_classic()
   )
+## Gráficos de dispersão e estimação da curva (LOG-LOG)
+###LOG-Area urbanizada em 2019 x LOG-População estimada no ano de 2019
+ggplotly(
+  ggplot(base_comp_f_log, aes(x = ln_pop_est_2019, y = ln_area_2019)) +
+    geom_point(color = "#0072B2", size = 1.5, alpha = 0.5) +
+    geom_smooth(aes(x = ln_pop_est_2019, y = ln_area_2019),color = "red",
+                method = "lm", se = F, size = 1)+
+    xlab("LOG-População estimada em 2019") +
+    ylab("LOG-Área urbanizada em km² - 2019")+
+    theme_classic()
+)
 
-## Estimando o modelo linear simples - area-urbanizada 2019 x população estimada 2019 valores totais
+## Estimando o modelo - area-urbanizada 2015 x população estimada 2015 valores totais
 
-modelo_area_pop_vt <- lm(formula = pop_est_2019 ~ area_2019,
-                       data = base_comp_f)
+modelo_area_2015_pop <- lm(formula = ln_area_2015  ~ ln_pop_est_2015,
+                       data = base_comp_f_log)
 
 ###Observando os parâmetros do modelo_area_pop_vt
-summary(modelo_area_pop_vt)
+summary(modelo_area_2015_pop)
 
-summ(modelo_area_pop_vt, confint = T, digits = 4, ci.width = .95)
-export_summs(modelo_area_pop_vt, scale = F, digits = 4)
+summ(modelo_area_2015_pop, confint = T, digits = 4, ci.width = .95)
+export_summs(modelo_area_2015_pop, scale = F, digits = 4)
+
+
+## Estimando o modelo - area-urbanizada 2019 x população estimada 2019 valores totais
+
+modelo_area_2019_pop <- lm(formula = ln_area_2019  ~ ln_pop_est_2019,
+                         data = base_comp_f_log)
+
+###Observando os parâmetros do modelo_area_pop_vt
+summary(modelo_area_2019_pop)
+
+summ(modelo_area_2019_pop, confint = T, digits = 4, ci.width = .95)
+export_summs(modelo_area_2019_pop, scale = F, digits = 4)
 
 
 ############### A CORRELAÇÃO ENTRE AS VARIÁVEIS SELECIONADAS ###################
@@ -183,25 +216,26 @@ export_summs(modelo_area_pop_vt, scale = F, digits = 4)
 #A função chart.Correlation() do pacote PerformanceAnalytics apresenta as
 #distribuições das variáveis, scatters, valores das correlações e suas
 #respectivas significâncias
+summary(base_comp_f_log)
 
-corr_base <- base_comp_f[ , c(3, 9, 10, 12, 18, 20, 24, 25)]
+corr_base <- base_comp_f_log[ , c(10, 20, 31, 33, 35, 37)]
+
+View(corr_base)
 
 chart.Correlation(corr_base, histogram = TRUE)
 
 ############ CRIANDO NOVA BASE PARA GERAÇÃO DE MODELOS DE REGRESSÃO ############
 
 corr_base_2 <- corr_base %>% 
-  rename(urb = "area_2019",
-         p_urb = "prop_urb_2019",
-         rh = "rh_adm_dir",
-         prh = "prop_rh_pop",
-         pol_p = "sum_pol_pub",
+  rename(ln_urb = "ln_area_2019",
+         ln_rh = "ln_rh_adm_dir",
+         p_publica = "sum_pol_pub",
          hom = "hom_2019", 
-         PIB = "PIB_pc_2019",
-         PIB_pc = "PIB_pcapita_2019")
+         ln_PIB = "ln_PIB_pc_2019",
+         ln_PIB_pcap = "ln_PIB_pcapita_2019")
 
 corr_base_2 %>%
-  corr_plot(urb, p_urb, rh, prh, pol_p, hom, PIB, PIB_pc,
+  corr_plot(ln_urb, ln_rh, p_publica, hom, ln_PIB, ln_PIB_pcap,
             shape.point = 21,
             col.point = "black",
             fill.point = "red",
@@ -222,27 +256,40 @@ corr_base_2 %>%
 save(corr_base_2, file = "corr_base_2.RData")
 
 
-################ MODELES LINEARES PARA V.I. - ÁREA URBANIZADA ##################
+################ MODELES LINEARES PARA V.I. = ÁREA URBANIZADA ##################
 
 #Estimando o modelo linear simples - area-urbanizada 2019 x nr. servidores adm. direta
 
-modelo_urb_rh <- lm(formula = rh ~ urb,
+modelo_rh_area_urb <- lm(formula = ln_rh ~ ln_urb,
                          data = corr_base_2)
 
 #Observando os parâmetros do modelo
-summary(modelo_urb_rh)
+summary(modelo_rh_area_urb)
 
-summ(modelo_urb_rh, confint = T, digits = 4, ci.width = .95)
-export_summs(modelo_urb_rh, scale = F, digits = 4)
+summ(modelo_rh_area_urb, confint = T, digits = 4, ci.width = .95)
+export_summs(modelo_rh_area_urb, scale = F, digits = 4)
 
+#Plot do modelo
+plot(modelo_rh_area_urb)
+
+#Plot dos dados com linha regressão
+ggplotly(
+  ggplot(corr_base_2, aes(x = ln_urb, y = ln_rh)) +
+    geom_point(color = "#0072B2", size = 1.5, alpha = 0.5) +
+    geom_smooth(aes(x = ln_urb, y = ln_rh),color = "red",
+                method = "lm", se = F, size = 1)+
+    xlab("LOG-Área urbanizada 2019") +
+    ylab("LOG-Número de servidores adm. direta")+
+    theme_classic()
+)
 
 ## Teste de verificação da aderência dos resíduos à Normalidade - SHAPIRO-FRANCIA                                  #
 
-sf.test(modelo_urb_rh) #função sf.test do pacote nortest
+sf.test(modelo_rh_area_urb) #função sf.test do pacote nortest
 
 #Histograma dos resíduos do modelo_urb_rh
 corr_base_2 %>%
-  mutate(residuos = modelo_urb_rh$residuals) %>%
+  mutate(residuos = modelo_rh_area_urb$residuals) %>%
   ggplot(aes(x = residuos)) +
   geom_histogram(aes(y = ..density..), 
                  color = "grey50", 
@@ -250,8 +297,8 @@ corr_base_2 %>%
                  bins = 30,
                  alpha = 0.6) +
   stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_urb_rh$residuals),
-                            sd = sd(modelo_urb_rh$residuals)),
+                args = list(mean = mean(modelo_rh_area_urb$residuals),
+                            sd = sd(modelo_rh_area_urb$residuals)),
                 aes(color = "Curva Normal Teórica"),
                 size = 2) +
   scale_color_manual("Legenda:",
@@ -267,30 +314,30 @@ corr_base_2 %>%
 
 ### O lambda de Box-Cox
 
-lambda_BC <- powerTransform(corr_base_2$rh) #função powerTransform do pacote car#
+lambda_BC <- powerTransform(corr_base_2$ln_rh) #função powerTransform do pacote car#
 lambda_BC
 
 ### Inserindo o lambda de Box-Cox na base de dados para a estimação de um novo modelo
 
-corr_base_2$bc_rh <- (((corr_base_2$rh ^ lambda_BC$lambda) - 1) / 
+corr_base_2$bc_ln_rh <- (((corr_base_2$ln_rh ^ lambda_BC$lambda) - 1) / 
                             lambda_BC$lambda)
 
 ### Estimando um novo modelo OLS com variável dependente transformada por Box-Cox
 
-modelo_bc_urb_rh <- lm(formula = bc_rh ~ urb,
+modelo_bc_rh_area_urb <- lm(formula = bc_ln_rh ~ ln_urb,
                 data = corr_base_2)
 
 ### Parâmetros do modelo
-summary(modelo_bc_urb_rh)
+summary(modelo_bc_rh_area_urb)
 
 ### Comparando os parâmetros do modelo_linear com os do modelo_bc_urb_rh
 
-export_summs(modelo_urb_rh, modelo_bc_urb_rh, scale = F, digits = 4)
+export_summs(modelo_rh_area_urb, modelo_bc_rh_area_urb, scale = F, digits = 4)
 
 ### Qualidade do ajuste para o modelo não linear (R²)
 
-data.frame("R²OLS" = round(summary(modelo_urb_rh)$r.squared, 4),
-           "R²BoxCox" = round(summary(modelo_bc_urb_rh)$r.squared, 4)) %>%
+data.frame("R²OLS" = round(summary(modelo_rh_area_urb)$r.squared, 4),
+           "R²BoxCox" = round(summary(modelo_bc_rh_area_urb)$r.squared, 4)) %>%
   kable() %>%
   kable_styling(bootstrap_options = "striped", position = "center", 
                 full_width = F, 
@@ -298,12 +345,12 @@ data.frame("R²OLS" = round(summary(modelo_urb_rh)$r.squared, 4),
 
 ### Teste de Shapiro-Francia para os resíduos do modelo_bc
 
-sf.test(modelo_bc_urb_rh$residuals)
+sf.test(modelo_bc_rh_area_urb$residuals)
 
 ### Histograma dos resíduos do modelo_bc
 
 corr_base_2 %>%
-  mutate(residuos = modelo_bc_urb_rh$residuals) %>%
+  mutate(residuos = modelo_bc_rh_area_urb$residuals) %>%
   ggplot(aes(x = residuos)) +
   geom_histogram(aes(y = ..density..), 
                  color = "grey50", 
@@ -311,8 +358,8 @@ corr_base_2 %>%
                  bins = 30,
                  alpha = 0.6) +
   stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_bc_urb_rh$residuals),
-                            sd = sd(modelo_bc_urb_rh$residuals)),
+                args = list(mean = mean(modelo_bc_rh_area_urb$residuals),
+                            sd = sd(modelo_bc_rh_area_urb$residuals)),
                 aes(color = "Curva Normal Teórica"),
                 size = 2) +
   scale_color_manual("Legenda:",
@@ -327,327 +374,24 @@ corr_base_2 %>%
 
 ###########################################################################################
 
-# Modelo lm - area-urbanizada 2019 x nr. servidores adm. direta/população-2019
-
-modelo_urb_prh<- lm(formula = prh ~ urb,
-                    data = corr_base_2)
-
-#Observando os parâmetros do modelo
-summary(modelo_urb_prh)
-
-
-summ(modelo_urb_prh, confint = T, digits = 4, ci.width = .95)
-export_summs(modelo_urb_prh, scale = F, digits = 4)
-
-
-#           REGRESSÃO NÃO LINEAR SIMPLES E TRANSFORMAÇÃO DE BOX-COX              #
-##################################################################################
-
-
-##################################################################################
-#          TESTE DE VERIFICAÇÃO DA ADERÊNCIA DOS RESÍDUOS À NORMALIDADE          #
-#                               SHAPIRO-FRANCIA                                  #
-##################################################################################
-
-#Shapiro-Francia: n > 30
-sf.test(modelo_urb_prh) #função sf.test do pacote nortest
-
-#Histograma dos resíduos do modelo OLS linear
-corr_base_2 %>%
-  mutate(residuos = modelo_urb_prh$residuals) %>%
-  ggplot(aes(x = residuos)) +
-  geom_histogram(aes(y = ..density..), 
-                 color = "grey50", 
-                 fill = "grey90", 
-                 bins = 30,
-                 alpha = 0.6) +
-  stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_urb_prh$residuals),
-                            sd = sd(modelo_urb_prh$residuals)),
-                aes(color = "Curva Normal Teórica"),
-                size = 2) +
-  scale_color_manual("Legenda:",
-                     values = "#FDE725FF") +
-  labs(x = "Resíduos",
-       y = "Frequência") +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position = "bottom")
-
-##################################################################################
-#                             TRANSFORMAÇÃO DE BOX-COX                           #
-##################################################################################
-#Para calcular o lambda de Box-Cox
-lambda_BC <- powerTransform(corr_base_2$prh) #função powerTransform do pacote car#
-lambda_BC
-
-#Inserindo o lambda de Box-Cox na base de dados para a estimação de um novo modelo
-corr_base_2$bc_prh <- (((corr_base_2$prh ^ lambda_BC$lambda) - 1) / 
-                        lambda_BC$lambda)
-
-#Estimando um novo modelo OLS com variável dependente transformada por Box-Cox
-modelo_bc_urb_prh <- lm(formula = bc_prh ~ urb,
-                       data = corr_base_2)
-
-#Parâmetros do modelo
-summary(modelo_bc_urb_prh)
-
-#Comparando os parâmetros do modelo_linear com os do modelo_bc
-
-export_summs(modelo_urb_prh, modelo_bc_urb_prh, scale = F, digits = 4)
-
-#Qualidade do ajuste para o modelo não linear (R²)
-data.frame("R²OLS" = round(summary(modelo_urb_prh)$r.squared, 4),
-           "R²BoxCox" = round(summary(modelo_bc_urb_prh)$r.squared, 4)) %>%
-  kable() %>%
-  kable_styling(bootstrap_options = "striped", position = "center", 
-                full_width = F, 
-                font_size = 30)
-
-#Teste de Shapiro-Francia para os resíduos do modelo_bc
-sf.test(modelo_bc_urb_prh$residuals) #função sf.test do pacote nortest
-
-#Histograma dos resíduos do modelo_bc
-corr_base_2 %>%
-  mutate(residuos = modelo_bc_urb_prh$residuals) %>%
-  ggplot(aes(x = residuos)) +
-  geom_histogram(aes(y = ..density..), 
-                 color = "grey50", 
-                 fill = "gray90", 
-                 bins = 30,
-                 alpha = 0.6) +
-  stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_bc_urb_prh$residuals),
-                            sd = sd(modelo_bc_urb_prh$residuals)),
-                aes(color = "Curva Normal Teórica"),
-                size = 2) +
-  scale_color_manual("Legenda:",
-                     values = "#440154FF") +
-  labs(x = "Resíduos",
-       y = "Frequência") +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position = "bottom")
 
 ###########################################################################################
 
-# Modelo lm - area-urbanizada 2019 x score política pública
+# Modelo lm - ln_area-urbanizada 2019 x ln_PIB_2019
 
-modelo_urb_pol<- lm(formula = pol_p ~ urb,
+modelo_urb_PIB<- lm(formula = ln_PIB ~ ln_urb,
                     data = corr_base_2)
 
-#Observando os parâmetros do modelo
-summary(modelo_urb_pol)
-
-
-summ(modelo_urb_pol, confint = T, digits = 4, ci.width = .95)
-export_summs(modelo_urb_pol, scale = F, digits = 4)
-
-
-#           REGRESSÃO NÃO LINEAR SIMPLES E TRANSFORMAÇÃO DE BOX-COX              #
-##################################################################################
-
-
-##################################################################################
-#          TESTE DE VERIFICAÇÃO DA ADERÊNCIA DOS RESÍDUOS À NORMALIDADE          #
-#                               SHAPIRO-FRANCIA                                  #
-##################################################################################
-
-#Shapiro-Francia: n > 30
-sf.test(modelo_urb_pol) #função sf.test do pacote nortest
-
-#Histograma dos resíduos do modelo OLS linear
-corr_base_2 %>%
-  mutate(residuos = modelo_urb_pol$residuals) %>%
-  ggplot(aes(x = residuos)) +
-  geom_histogram(aes(y = ..density..), 
-                 color = "grey50", 
-                 fill = "grey90", 
-                 bins = 30,
-                 alpha = 0.6) +
-  stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_urb_pol$residuals),
-                            sd = sd(modelo_urb_pol$residuals)),
-                aes(color = "Curva Normal Teórica"),
-                size = 2) +
-  scale_color_manual("Legenda:",
-                     values = "#FDE725FF") +
-  labs(x = "Resíduos",
-       y = "Frequência") +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position = "bottom")
-
-##################################################################################
-#                             TRANSFORMAÇÃO DE BOX-COX                           #
-##################################################################################
-#Para calcular o lambda de Box-Cox
-lambda_BC <- powerTransform(corr_base_2$pol_p) #função powerTransform do pacote car#
-lambda_BC
-
-#Inserindo o lambda de Box-Cox na base de dados para a estimação de um novo modelo
-corr_base_2$bc_pol <- (((corr_base_2$pol_p ^ lambda_BC$lambda) - 1) / 
-                         lambda_BC$lambda)
-
-#Estimando um novo modelo OLS com variável dependente transformada por Box-Cox
-modelo_bc_urb_pol <- lm(formula = bc_pol ~ urb,
-                        data = corr_base_2)
-
-#Parâmetros do modelo
-summary(modelo_bc_urb_pol)
-
-#Comparando os parâmetros do modelo_linear com os do modelo_bc
-export_summs(modelo_urb_pol, modelo_bc_urb_pol, scale = F, digits = 4)
-
-#Qualidade do ajuste para o modelo não linear (R²)
-data.frame("R²OLS" = round(summary(modelo_urb_pol)$r.squared, 4),
-           "R²BoxCox" = round(summary(modelo_bc_urb_pol)$r.squared, 4)) %>%
-  kable() %>%
-  kable_styling(bootstrap_options = "striped", position = "center", 
-                full_width = F, 
-                font_size = 30)
-
-#Teste de Shapiro-Francia para os resíduos do modelo_bc
-sf.test(modelo_bc_urb_pol$residuals) #função sf.test do pacote nortest
-
-#Histograma dos resíduos do modelo_bc
-corr_base_2 %>%
-  mutate(residuos = modelo_bc_urb_pol$residuals) %>%
-  ggplot(aes(x = residuos)) +
-  geom_histogram(aes(y = ..density..), 
-                 color = "grey50", 
-                 fill = "gray90", 
-                 bins = 30,
-                 alpha = 0.6) +
-  stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_bc_urb_pol$residuals),
-                            sd = sd(modelo_bc_urb_pol$residuals)),
-                aes(color = "Curva Normal Teórica"),
-                size = 2) +
-  scale_color_manual("Legenda:",
-                     values = "#440154FF") +
-  labs(x = "Resíduos",
-       y = "Frequência") +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position = "bottom")
-
-###########################################################################################
-
-# Modelo lm - area-urbanizada 2019 x homicídios
-
-modelo_urb_hom<- lm(formula = hom ~ urb,
-                    data = corr_base_2)
-
-#Observando os parâmetros do modelo
-summary(modelo_urb_hom)
-
-
-summ(modelo_urb_hom, confint = T, digits = 4, ci.width = .95)
-export_summs(modelo_urb_hom, scale = F, digits = 4)
-
-
-#           REGRESSÃO NÃO LINEAR SIMPLES E TRANSFORMAÇÃO DE BOX-COX              #
-##################################################################################
-
-
-##################################################################################
-#          TESTE DE VERIFICAÇÃO DA ADERÊNCIA DOS RESÍDUOS À NORMALIDADE          #
-#                               SHAPIRO-FRANCIA                                  #
-##################################################################################
-
-#Shapiro-Francia: n > 30
-sf.test(modelo_urb_hom) #função sf.test do pacote nortest
-
-#Histograma dos resíduos do modelo OLS linear
-corr_base_2 %>%
-  mutate(residuos = modelo_urb_hom$residuals) %>%
-  ggplot(aes(x = residuos)) +
-  geom_histogram(aes(y = ..density..), 
-                 color = "grey50", 
-                 fill = "grey90", 
-                 bins = 30,
-                 alpha = 0.6) +
-  stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_urb_hom$residuals),
-                            sd = sd(modelo_urb_hom$residuals)),
-                aes(color = "Curva Normal Teórica"),
-                size = 2) +
-  scale_color_manual("Legenda:",
-                     values = "#FDE725FF") +
-  labs(x = "Resíduos",
-       y = "Frequência") +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position = "bottom")
-
-##################################################################################
-#                             TRANSFORMAÇÃO DE BOX-COX                           #
-##################################################################################
-#Para calcular o lambda de Box-Cox
-lambda_BC <- powerTransform(corr_base_2$hom) #função powerTransform do pacote car#
-lambda_BC
-
-#Inserindo o lambda de Box-Cox na base de dados para a estimação de um novo modelo
-corr_base_2$bc_hom <- (((corr_base_2$hom ^ lambda_BC$lambda) - 1) / 
-                         lambda_BC$lambda)
-
-#Estimando um novo modelo OLS com variável dependente transformada por Box-Cox
-modelo_bc_urb_hom <- lm(formula = bc_hom ~ urb,
-                        data = corr_base_2)
-
-#Parâmetros do modelo
-summary(modelo_bc_urb_hom)
-
-#Comparando os parâmetros do modelo_linear com os do modelo_bc
-
-export_summs(modelo_urb_hom, modelo_bc_urb_hom, scale = F, digits = 4)
-
-#Qualidade do ajuste para o modelo não linear (R²)
-data.frame("R²OLS" = round(summary(modelo_urb_hom)$r.squared, 4),
-           "R²BoxCox" = round(summary(modelo_bc_urb_hom)$r.squared, 4)) %>%
-  kable() %>%
-  kable_styling(bootstrap_options = "striped", position = "center", 
-                full_width = F, 
-                font_size = 30)
-
-#Teste de Shapiro-Francia para os resíduos do modelo_bc
-sf.test(modelo_bc_urb_hom$residuals) #função sf.test do pacote nortest
-
-#Histograma dos resíduos do modelo_bc
-corr_base_2 %>%
-  mutate(residuos = modelo_bc_urb_hom$residuals) %>%
-  ggplot(aes(x = residuos)) +
-  geom_histogram(aes(y = ..density..), 
-                 color = "grey50", 
-                 fill = "gray90", 
-                 bins = 30,
-                 alpha = 0.6) +
-  stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_bc_urb_hom$residuals),
-                            sd = sd(modelo_bc_urb_hom$residuals)),
-                aes(color = "Curva Normal Teórica"),
-                size = 2) +
-  scale_color_manual("Legenda:",
-                     values = "#440154FF") +
-  labs(x = "Resíduos",
-       y = "Frequência") +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position = "bottom")
-
-###########################################################################################
-
-# Modelo lm - area-urbanizada 2019 x PIB
-
-modelo_urb_PIB<- lm(formula = PIB ~ urb,
-                    data = corr_base_2)
+#Plot dos dados com linha regressão
+ggplotly(
+  ggplot(corr_base_2, aes(x = ln_urb, y = ln_PIB)) +
+    geom_point(color = "#0072B2", size = 1.5, alpha = 0.5) +
+    geom_smooth(aes(x = ln_urb, y = ln_PIB),color = "#666666",
+                method = "lm", se = F, size = 1)+
+    xlab("LOG-Área urbanizada 2019") +
+    ylab("LOG-PIB")+
+    theme_classic()
+)
 
 #Observando os parâmetros do modelo
 summary(modelo_urb_PIB)
@@ -696,15 +440,15 @@ corr_base_2 %>%
 #                             TRANSFORMAÇÃO DE BOX-COX                           #
 ##################################################################################
 #Para calcular o lambda de Box-Cox
-lambda_BC <- powerTransform(corr_base_2$PIB) #função powerTransform do pacote car#
+lambda_BC <- powerTransform(corr_base_2$ln_PIB) #função powerTransform do pacote car#
 lambda_BC
 
 #Inserindo o lambda de Box-Cox na base de dados para a estimação de um novo modelo
-corr_base_2$bc_PIB <- (((corr_base_2$PIB ^ lambda_BC$lambda) - 1) / 
+corr_base_2$bc_PIB <- (((corr_base_2$ln_PIB ^ lambda_BC$lambda) - 1) / 
                          lambda_BC$lambda)
 
 #Estimando um novo modelo OLS com variável dependente transformada por Box-Cox
-modelo_bc_urb_PIB <- lm(formula = bc_PIB ~ urb,
+modelo_bc_urb_PIB <- lm(formula = bc_PIB ~ ln_urb,
                         data = corr_base_2)
 
 #Parâmetros do modelo
@@ -749,107 +493,3 @@ corr_base_2 %>%
         legend.position = "bottom")
 
 ###########################################################################################
-
-# Modelo lm - area-urbanizada 2019 x PIB per capita
-
-modelo_urb_PIB_pc <- lm(formula = PIB_pc ~ urb,
-                    data = corr_base_2)
-
-#Observando os parâmetros do modelo
-summary(modelo_urb_PIB_pc)
-
-
-summ(modelo_urb_PIB_pc, confint = T, digits = 4, ci.width = .95)
-export_summs(modelo_urb_PIB_pc, scale = F, digits = 4)
-
-
-#           REGRESSÃO NÃO LINEAR SIMPLES E TRANSFORMAÇÃO DE BOX-COX              #
-##################################################################################
-
-
-##################################################################################
-#          TESTE DE VERIFICAÇÃO DA ADERÊNCIA DOS RESÍDUOS À NORMALIDADE          #
-#                               SHAPIRO-FRANCIA                                  #
-##################################################################################
-
-#Shapiro-Francia: n > 30
-sf.test(modelo_urb_PIB_pc) #função sf.test do pacote nortest
-
-#Histograma dos resíduos do modelo OLS linear
-corr_base_2 %>%
-  mutate(residuos = modelo_urb_PIB_pc$residuals) %>%
-  ggplot(aes(x = residuos)) +
-  geom_histogram(aes(y = ..density..), 
-                 color = "grey50", 
-                 fill = "grey90", 
-                 bins = 30,
-                 alpha = 0.6) +
-  stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_urb_PIB_pc$residuals),
-                            sd = sd(modelo_urb_PIB_pc$residuals)),
-                aes(color = "Curva Normal Teórica"),
-                size = 2) +
-  scale_color_manual("Legenda:",
-                     values = "#FDE725FF") +
-  labs(x = "Resíduos",
-       y = "Frequência") +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position = "bottom")
-
-##################################################################################
-#                             TRANSFORMAÇÃO DE BOX-COX                           #
-##################################################################################
-#Para calcular o lambda de Box-Cox
-lambda_BC <- powerTransform(corr_base_2$PIB_pc) #função powerTransform do pacote car#
-lambda_BC
-
-#Inserindo o lambda de Box-Cox na base de dados para a estimação de um novo modelo
-corr_base_2$bc_PIB_pc <- (((corr_base_2$PIB_pc ^ lambda_BC$lambda) - 1) / 
-                         lambda_BC$lambda)
-
-#Estimando um novo modelo OLS com variável dependente transformada por Box-Cox
-modelo_bc_urb_PIB_pc <- lm(formula = bc_PIB_pc ~ urb,
-                        data = corr_base_2)
-
-#Parâmetros do modelo
-summary(modelo_bc_urb_PIB_pc)
-
-#Comparando os parâmetros do modelo_linear com os do modelo_bc
-#CUIDADO!!! OS PARÂMETROS NÃO SÃO DIRETAMENTE COMPARÁVEIS!
-export_summs(modelo_urb_PIB_pc, modelo_bc_urb_PIB_pc, scale = F, digits = 4)
-
-#Qualidade do ajuste para o modelo não linear (R²)
-data.frame("R²OLS" = round(summary(modelo_urb_PIB_pc)$r.squared, 4),
-           "R²BoxCox" = round(summary(modelo_bc_urb_PIB_pc)$r.squared, 4)) %>%
-  kable() %>%
-  kable_styling(bootstrap_options = "striped", position = "center", 
-                full_width = F, 
-                font_size = 30)
-
-#Teste de Shapiro-Francia para os resíduos do modelo_bc
-sf.test(modelo_bc_urb_PIB_pc$residuals) #função sf.test do pacote nortest
-
-#Histograma dos resíduos do modelo_bc
-corr_base_2 %>%
-  mutate(residuos = modelo_bc_urb_PIB_pc$residuals) %>%
-  ggplot(aes(x = residuos)) +
-  geom_histogram(aes(y = ..density..), 
-                 color = "grey50", 
-                 fill = "gray90", 
-                 bins = 30,
-                 alpha = 0.6) +
-  stat_function(fun = dnorm, 
-                args = list(mean = mean(modelo_bc_urb_PIB_pc$residuals),
-                            sd = sd(modelo_bc_urb_PIB_pc$residuals)),
-                aes(color = "Curva Normal Teórica"),
-                size = 2) +
-  scale_color_manual("Legenda:",
-                     values = "#440154FF") +
-  labs(x = "Resíduos",
-       y = "Frequência") +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position = "bottom")
